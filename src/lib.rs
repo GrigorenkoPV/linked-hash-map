@@ -27,7 +27,7 @@
 //! assert_eq!(items, [(2, 20), (1, 10), (3, 30)]);
 //! ```
 
-#![forbid(missing_docs)]
+#![forbid(missing_docs, unsafe_op_in_unsafe_fn)]
 #![cfg_attr(all(feature = "nightly", test), feature(test))]
 
 // Optional Serde support
@@ -117,13 +117,13 @@ impl<K, V> Node<K, V> {
 
 // drop empty node without dropping its key and value
 unsafe fn drop_empty_node<K, V>(the_box: *mut Node<K, V>) {
+    let layout = std::alloc::Layout::new::<Node<K, V>>();
     // Safety:
     // In this crate all `Node` is allocated via `Box` or `alloc`, and `Box` uses the
     // Global allocator for its allocation,
     // (https://doc.rust-lang.org/std/boxed/index.html#memory-layout) so we can safely
     // deallocate the pointer to `Node` by calling `dealloc` method
-    let layout = std::alloc::Layout::new::<Node<K, V>>();
-    std::alloc::dealloc(the_box as *mut u8, layout);
+    unsafe { std::alloc::dealloc(the_box as *mut u8, layout) }
 }
 
 impl<K: Hash + Eq, V> LinkedHashMap<K, V> {
@@ -159,10 +159,16 @@ impl<K, V, S> LinkedHashMap<K, V, S> {
 
     // Caller must check `!self.head.is_null()`
     unsafe fn drop_entries(&mut self) {
-        let mut cur = (*self.head).next;
+        // Safety: by contract.
+        let mut cur = unsafe { (*self.head).next };
         while cur != self.head {
-            let next = (*cur).next;
-            drop(Box::from_raw(cur));
+            // Safety: the node is in the map, so the `next` pointer is valid.
+            let next = unsafe { (*cur).next };
+            // Safety:
+            // In this crate all `Node` is allocated via `Box` or `alloc`,
+            // both using the global allocator.
+            // So we can safely drop and deallocate the node using `Box`.
+            drop(unsafe { Box::from_raw(cur) });
             cur = next;
         }
     }
