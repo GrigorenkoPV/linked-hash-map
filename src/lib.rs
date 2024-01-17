@@ -547,6 +547,34 @@ impl<K: Hash + Eq, V, S: BuildHasher> LinkedHashMap<K, V, S> {
             .map(|e| unsafe { (&(**e).key, &(**e).value) })
     }
 
+    /// Gets the first entry, allowing to modify the value.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use linked_hash_map::LinkedHashMap;
+    /// let mut map = LinkedHashMap::new();
+    /// map.insert(1, 10);
+    /// map.insert(2, 20);
+    /// let front = map.front_mut();
+    /// assert_eq!(front, Some((&1, &mut 10)));
+    /// let (key, value) = front.unwrap();
+    /// *value = key + 2;
+    /// assert_eq!(map.get(&1), Some(&3));
+    /// ```
+    #[inline]
+    pub fn front_mut(&mut self) -> Option<(&K, &mut V)> {
+        if self.is_empty() {
+            return None;
+        }
+        let lru = unsafe { (*self.head).prev };
+        self.map
+            .get(&KeyRef {
+                k: unsafe { &(*lru).key },
+            })
+            .map(|e| unsafe { (&(**e).key, &mut (**e).value) })
+    }
+
     /// Removes the last entry.
     ///
     /// # Examples
@@ -599,6 +627,35 @@ impl<K: Hash + Eq, V, S: BuildHasher> LinkedHashMap<K, V, S> {
                 k: unsafe { &(*mru).key },
             })
             .map(|e| unsafe { (&(**e).key, &(**e).value) })
+    }
+
+    /// Gets the last entry, allowing to modify the value.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use linked_hash_map::LinkedHashMap;
+    /// let mut map = LinkedHashMap::new();
+    /// map.insert(1, 10);
+    /// map.insert(2, 20);
+    /// let back = map.back_mut();
+    /// assert_eq!(back, Some((&2, &mut 20)));
+    /// let (key, value) = back.unwrap();
+    /// *value = key + 2;
+    /// assert_eq!(map.get(&2), Some(&4));
+    ///
+    /// ```
+    #[inline]
+    pub fn back_mut(&mut self) -> Option<(&K, &mut V)> {
+        if self.is_empty() {
+            return None;
+        }
+        let mru = unsafe { (*self.head).next };
+        self.map
+            .get(&KeyRef {
+                k: unsafe { &(*mru).key },
+            })
+            .map(|e| unsafe { (&(**e).key, &mut (**e).value) })
     }
 
     /// Returns the number of key-value pairs in the map.
